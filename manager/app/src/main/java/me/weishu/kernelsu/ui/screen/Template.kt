@@ -51,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -61,16 +62,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ramcosta.composedestinations.annotation.Destination
-import com.ramcosta.composedestinations.annotation.RootGraph
-import com.ramcosta.composedestinations.generated.destinations.TemplateEditorScreenDestination
-import com.ramcosta.composedestinations.navigation.DestinationsNavigator
-import com.ramcosta.composedestinations.result.ResultRecipient
-import com.ramcosta.composedestinations.result.getOr
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
@@ -81,13 +77,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import me.weishu.kernelsu.R
 import me.weishu.kernelsu.ui.component.DropdownItem
+import me.weishu.kernelsu.ui.navigation3.LocalNavigator
+import me.weishu.kernelsu.ui.navigation3.Navigator
+import me.weishu.kernelsu.ui.navigation3.Route
 import me.weishu.kernelsu.ui.viewmodel.TemplateViewModel
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.FloatingActionButton
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.ListPopup
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
@@ -98,10 +96,10 @@ import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
+import top.yukonga.miuix.kmp.extra.SuperListPopup
 import top.yukonga.miuix.kmp.icon.MiuixIcons
-import top.yukonga.miuix.kmp.icon.icons.useful.Back
-import top.yukonga.miuix.kmp.icon.icons.useful.Copy
-import top.yukonga.miuix.kmp.icon.icons.useful.Refresh
+import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.icon.extended.Copy
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
@@ -114,11 +112,9 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
  */
 @SuppressLint("LocalContextGetResourceValueCall")
 @Composable
-@Destination<RootGraph>
 fun AppProfileTemplateScreen(
-    navigator: DestinationsNavigator,
-    resultRecipient: ResultRecipient<TemplateEditorScreenDestination, Boolean>
 ) {
+    val navigator = LocalNavigator.current
     val viewModel = viewModel<TemplateViewModel>()
     val scope = rememberCoroutineScope()
     val scrollBehavior = MiuixScrollBehavior()
@@ -129,10 +125,13 @@ fun AppProfileTemplateScreen(
         }
     }
 
-    // handle result from TemplateEditorScreen, refresh if needed
-    resultRecipient.onNavResult { result ->
-        if (result.getOr { false }) {
-            scope.launch { viewModel.fetchTemplates() }
+    val requestKey = "template_edit"
+    LaunchedEffect(Unit) {
+        navigator.observeResult<Boolean>(requestKey).collect { success ->
+            if (success) {
+                navigator.clearResult(requestKey)
+                scope.launch { viewModel.fetchTemplates() }
+            }
         }
     }
 
@@ -181,7 +180,7 @@ fun AppProfileTemplateScreen(
                 }
             }
             TopBar(
-                onBack = dropUnlessResumed { navigator.popBackStack() },
+                onBack = dropUnlessResumed { navigator.pop() },
                 onSync = {
                     scope.launch { viewModel.fetchTemplates(true) }
                 },
@@ -225,9 +224,7 @@ fun AppProfileTemplateScreen(
                 containerColor = colorScheme.primary,
                 shadowElevation = 0.dp,
                 onClick = {
-                    navigator.navigate(TemplateEditorScreenDestination(TemplateViewModel.TemplateInfo(), false)) {
-                        launchSingleTop = true
-                    }
+                    navigator.navigateForResult(Route.TemplateEditor(TemplateViewModel.TemplateInfo(), false), requestKey)
                 },
                 modifier = Modifier
                     .offset(y = offsetHeight)
@@ -254,7 +251,7 @@ fun AppProfileTemplateScreen(
         val pullToRefreshState = rememberPullToRefreshState()
         LaunchedEffect(isRefreshing) {
             if (isRefreshing) {
-                delay(350)
+                delay(150)
                 viewModel.fetchTemplates()
                 isRefreshing = false
             }
@@ -310,18 +307,13 @@ fun AppProfileTemplateScreen(
 
 @Composable
 private fun TemplateItem(
-    navigator: DestinationsNavigator,
+    navigator: Navigator,
     template: TemplateViewModel.TemplateInfo
 ) {
     Card(
         modifier = Modifier.padding(bottom = 12.dp),
         onClick = {
-            navigator.navigate(TemplateEditorScreenDestination(template, !template.local)) {
-                popUpTo(TemplateEditorScreenDestination) {
-                    inclusive = true
-                }
-                launchSingleTop = true
-            }
+            navigator.navigateForResult(Route.TemplateEditor(template, !template.local), "template_edit")
         },
         showIndication = true,
         pressFeedbackType = PressFeedbackType.Sink
@@ -442,30 +434,23 @@ private fun TopBar(
                 modifier = Modifier.padding(start = 16.dp),
                 onClick = onBack
             ) {
+                val layoutDirection = LocalLayoutDirection.current
                 Icon(
-                    imageVector = MiuixIcons.Useful.Back,
+                    modifier = Modifier.graphicsLayer {
+                        if (layoutDirection == LayoutDirection.Rtl) scaleX = -1f
+                    },
+                    imageVector = MiuixIcons.Back,
                     contentDescription = null,
                     tint = colorScheme.onBackground
                 )
             }
         },
         actions = {
-            IconButton(
-                modifier = Modifier.padding(end = 16.dp),
-                onClick = onSync
-            ) {
-                Icon(
-                    imageVector = MiuixIcons.Useful.Refresh,
-                    contentDescription = stringResource(id = R.string.app_profile_template_sync),
-                    tint = colorScheme.onBackground
-                )
-            }
-
             val showTopPopup = remember { mutableStateOf(false) }
-            ListPopup(
+            SuperListPopup(
                 show = showTopPopup,
                 popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
-                alignment = PopupPositionProvider.Align.TopRight,
+                alignment = PopupPositionProvider.Align.TopEnd,
                 onDismissRequest = {
                     showTopPopup.value = false
                 }
@@ -498,7 +483,7 @@ private fun TopBar(
                 holdDownState = showTopPopup.value
             ) {
                 Icon(
-                    imageVector = MiuixIcons.Useful.Copy,
+                    imageVector = MiuixIcons.Copy,
                     contentDescription = stringResource(id = R.string.app_profile_import_export),
                     tint = colorScheme.onBackground
                 )

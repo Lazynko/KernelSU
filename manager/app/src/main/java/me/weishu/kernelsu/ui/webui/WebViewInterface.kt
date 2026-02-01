@@ -177,6 +177,7 @@ class WebViewInterface(
                 }
             }
         }
+        enableInsets(enable)
     }
 
     @JavascriptInterface
@@ -256,6 +257,13 @@ class WebViewInterface(
             }
         }
         return jsonArray.toString()
+    }
+
+    @JavascriptInterface
+    fun exit() {
+        if (context is Activity) {
+            context.finish()
+        }
     }
 }
 

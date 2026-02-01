@@ -5,6 +5,8 @@ import android.os.Build
 import android.system.Os
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.EaseInOut
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -33,12 +35,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.Link
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -51,23 +53,24 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.pm.PackageInfoCompat
-import com.ramcosta.composedestinations.generated.destinations.InstallScreenDestination
-import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.weishu.kernelsu.KernelVersion
 import me.weishu.kernelsu.Natives
 import me.weishu.kernelsu.R
 import me.weishu.kernelsu.getKernelVersion
-import me.weishu.kernelsu.ui.LocalHandlePageChange
+import me.weishu.kernelsu.ui.LocalPagerState
 import me.weishu.kernelsu.ui.component.DropdownItem
 import me.weishu.kernelsu.ui.component.RebootListPopup
 import me.weishu.kernelsu.ui.component.rememberConfirmDialog
+import me.weishu.kernelsu.ui.navigation3.Navigator
+import me.weishu.kernelsu.ui.navigation3.Route
 import me.weishu.kernelsu.ui.theme.isInDarkTheme
 import me.weishu.kernelsu.ui.util.checkNewVersion
 import me.weishu.kernelsu.ui.util.getModuleCount
@@ -85,6 +88,8 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.Link
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.isDynamicColor
@@ -94,7 +99,7 @@ import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 
 @Composable
 fun HomePager(
-    navigator: DestinationsNavigator,
+    navigator: Navigator,
     bottomInnerPadding: Dp
 ) {
     val kernelVersion = getKernelVersion()
@@ -138,7 +143,8 @@ fun HomePager(
                 val lkmMode = ksuVersion?.let {
                     if (kernelVersion.isGKI()) Natives.isLkmMode else null
                 }
-                val handlePageChange = LocalHandlePageChange.current
+                val pageState = LocalPagerState.current
+                val coroutineScope = rememberCoroutineScope()
 
                 Column(
                     modifier = Modifier.padding(vertical = 12.dp),
@@ -167,15 +173,17 @@ fun HomePager(
                     StatusCard(
                         kernelVersion, ksuVersion, lkmMode,
                         onClickInstall = {
-                            navigator.navigate(InstallScreenDestination) {
-                                launchSingleTop = true
-                            }
+                            navigator.push(Route.Install)
                         },
                         onClickSuperuser = {
-                            handlePageChange(1)
+                            coroutineScope.launch {
+                                pageState.animateScrollToPage(page = 1, animationSpec = tween(easing = EaseInOut))
+                            }
                         },
                         onclickModule = {
-                            handlePageChange(2)
+                            coroutineScope.launch {
+                                pageState.animateScrollToPage(page = 2, animationSpec = tween(easing = EaseInOut))
+                            }
                         },
                         themeMode = themeMode
                     )
@@ -451,7 +459,7 @@ private fun StatusCard(
                     BasicComponent(
                         title = stringResource(R.string.home_not_installed),
                         summary = stringResource(R.string.home_click_to_install),
-                        leftAction = {
+                        startAction = {
                             Icon(
                                 Icons.Rounded.ErrorOutline,
                                 stringResource(R.string.home_not_installed),
@@ -475,7 +483,7 @@ private fun StatusCard(
                     BasicComponent(
                         title = stringResource(R.string.home_unsupported),
                         summary = stringResource(R.string.home_unsupported_reason),
-                        leftAction = {
+                        startAction = {
                             Icon(
                                 Icons.Rounded.ErrorOutline,
                                 stringResource(R.string.home_unsupported),
@@ -538,10 +546,9 @@ fun LearnMoreCard() {
         BasicComponent(
             title = stringResource(R.string.home_learn_kernelsu),
             summary = stringResource(R.string.home_click_to_learn_kernelsu),
-            rightActions = {
+            endActions = {
                 Icon(
-                    modifier = Modifier.size(28.dp),
-                    imageVector = Icons.Rounded.Link,
+                    imageVector = MiuixIcons.Link,
                     tint = colorScheme.onSurface,
                     contentDescription = null
                 )
@@ -564,10 +571,9 @@ fun DonateCard() {
         BasicComponent(
             title = stringResource(R.string.home_support_title),
             summary = stringResource(R.string.home_support_content),
-            rightActions = {
+            endActions = {
                 Icon(
-                    modifier = Modifier.size(28.dp),
-                    imageVector = Icons.Rounded.Link,
+                    imageVector = MiuixIcons.Link,
                     tint = colorScheme.onSurface,
                     contentDescription = null
                 )
