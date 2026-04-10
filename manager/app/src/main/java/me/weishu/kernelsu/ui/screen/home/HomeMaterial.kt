@@ -5,7 +5,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,8 +25,6 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -38,13 +35,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.rememberTopAppBarState
-import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
@@ -56,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import me.weishu.kernelsu.KernelVersion
 import me.weishu.kernelsu.R
 import me.weishu.kernelsu.ui.component.dialog.rememberConfirmDialog
+import me.weishu.kernelsu.ui.component.material.TonalCard
 import me.weishu.kernelsu.ui.component.rebootlistpopup.RebootListPopup
 import me.weishu.kernelsu.ui.component.statustag.StatusTag
 
@@ -91,9 +87,9 @@ fun HomePagerMaterial(
             }
             if (state.showVersionMismatchWarning) {
                 WarningCard(
-                    stringResource(id = R.string.home_version_mismatch).format(
+                    stringResource(id = R.string.home_version_mismatch,
                         state.currentManagerVersionCode,
-                        state.ksuVersion
+                        state.ksuVersion ?: 0
                     )
                 )
             }
@@ -102,8 +98,8 @@ fun HomePagerMaterial(
             }
             if (state.showRequireKernelWarning) {
                 WarningCard(
-                    stringResource(id = R.string.require_kernel_version).format(
-                        state.ksuVersion,
+                    stringResource(id = R.string.require_kernel_version,
+                        state.ksuVersion ?: 0,
                         me.weishu.kernelsu.Natives.MINIMAL_SUPPORTED_KERNEL
                     )
                 )
@@ -138,7 +134,7 @@ private fun UpdateCard(
     ) {
         val updateDialog = rememberConfirmDialog(onConfirm = { actions.onOpenUrl(newVersion.downloadUrl) })
         WarningCard(
-            message = stringResource(id = R.string.new_version_available).format(newVersion.versionCode),
+            message = stringResource(id = R.string.new_version_available, newVersion.versionCode),
             MaterialTheme.colorScheme.outlineVariant
         ) {
             if (newVersion.changelog.isEmpty()) {
@@ -183,12 +179,16 @@ private fun StatusCard(
                 MaterialTheme.colorScheme.secondaryContainer
             } else {
                 MaterialTheme.colorScheme.errorContainer
+            },
+            onClick = {
+                if (!state.isLateLoadMode) {
+                    actions.onInstallClick()
+                }
             }
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(enabled = !state.isLateLoadMode) { actions.onInstallClick() }
                     .padding(24.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -292,11 +292,13 @@ private fun StatusCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                TonalCard(modifier = Modifier.weight(1f)) {
+                TonalCard(
+                    modifier = Modifier.weight(1f),
+                    onClick = actions.onSuperuserClick
+                ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { actions.onSuperuserClick() }
                             .padding(horizontal = 24.dp, vertical = 16.dp)
                     ) {
                         Text(
@@ -313,11 +315,13 @@ private fun StatusCard(
                         )
                     }
                 }
-                TonalCard(modifier = Modifier.weight(1f)) {
+                TonalCard(
+                    modifier = Modifier.weight(1f),
+                    onClick = actions.onModuleClick
+                ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { actions.onModuleClick() }
                             .padding(horizontal = 24.dp, vertical = 16.dp)
                     ) {
                         Text(
@@ -345,42 +349,29 @@ private fun WarningCard(
     color: Color = MaterialTheme.colorScheme.error,
     onClick: (() -> Unit)? = null
 ) {
-    TonalCard(containerColor = color) {
+    val content = @Composable {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(onClick?.let { Modifier.clickable { it() } } ?: Modifier)
                 .padding(24.dp)
         ) {
             Text(text = message, style = MaterialTheme.typography.bodyMedium)
         }
     }
-}
-
-@Composable
-fun TonalCard(
-    modifier: Modifier = Modifier,
-    containerColor: Color = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp),
-    shape: Shape = MaterialTheme.shapes.large,
-    content: @Composable () -> Unit
-) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        shape = shape
-    ) {
-        content()
+    if (onClick != null) {
+        TonalCard(containerColor = color, onClick = onClick, content = content)
+    } else {
+        TonalCard(containerColor = color, content = content)
     }
 }
 
 @Composable
 private fun LearnMoreCard(onOpenUrl: (String) -> Unit) {
     val url = stringResource(R.string.home_learn_kernelsu_url)
-    TonalCard {
+    TonalCard(onClick = { onOpenUrl(url) }) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { onOpenUrl(url) }
                 .padding(24.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -399,11 +390,10 @@ private fun LearnMoreCard(onOpenUrl: (String) -> Unit) {
 
 @Composable
 private fun DonateCard(onOpenUrl: (String) -> Unit) {
-    TonalCard {
+    TonalCard(onClick = { onOpenUrl("https://patreon.com/weishu") }) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { onOpenUrl("https://patreon.com/weishu") }
                 .padding(24.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -444,7 +434,22 @@ private fun InfoCard(systemInfo: SystemInfo) {
             Spacer(Modifier.height(16.dp))
             InfoCardItem(stringResource(R.string.home_fingerprint), systemInfo.fingerprint)
             Spacer(Modifier.height(16.dp))
-            InfoCardItem(stringResource(R.string.home_selinux_status), systemInfo.selinuxStatus)
+            val selinuxDisplay = when (systemInfo.selinuxStatus) {
+                "Enforcing" -> stringResource(R.string.selinux_status_enforcing)
+                "Permissive" -> stringResource(R.string.selinux_status_permissive)
+                "Disabled" -> stringResource(R.string.selinux_status_disabled)
+                else -> stringResource(R.string.selinux_status_unknown)
+            }
+            InfoCardItem(stringResource(R.string.home_selinux_status), selinuxDisplay)
+            Spacer(Modifier.height(16.dp))
+            val seccompDisplay = when (systemInfo.seccompStatus) {
+                -1 -> stringResource(R.string.seccomp_status_not_supported)
+                0 -> stringResource(R.string.seccomp_status_disabled)
+                1 -> stringResource(R.string.seccomp_status_strict)
+                2 -> stringResource(R.string.seccomp_status_filter)
+                else -> stringResource(R.string.seccomp_status_unknown)
+            }
+            InfoCardItem(stringResource(R.string.home_seccomp_status), seccompDisplay)
         }
     }
 }
@@ -468,7 +473,7 @@ private fun StatusCardNotActivatedPreview() {
 @Composable
 private fun StatusCardPermissivePreview() {
     StatusCard(
-        state = previewHomeScreenState(ksuVersion = null, lkmMode = null, isSELinuxPermissive = true),
+        state = previewHomeScreenState(ksuVersion = null, lkmMode = null, selinuxStatus = "Permissive"),
         actions = HomeActions({}, {}, {}, {})
     )
 }
@@ -486,7 +491,8 @@ private val previewSystemInfo = SystemInfo(
     kernelVersion = "6.1.0-android14-0-g1234567",
     managerVersion = "1.0.0 (10000)",
     fingerprint = "google/raven/raven:14/AP1A.240305.019:user/release-keys",
-    selinuxStatus = "Enforcing"
+    selinuxStatus = "Enforcing",
+    seccompStatus = 2
 )
 
 private val previewUriHandler = object : UriHandler {
@@ -499,7 +505,6 @@ private fun HomeScreenPreviewContent(
     lkmMode: Boolean?,
     isSafeMode: Boolean = false,
     isLateLoadMode: Boolean = false,
-    isSELinuxPermissive: Boolean = false,
     superuserCount: Int = 0,
     moduleCount: Int = 0,
     selinuxStatus: String = "Enforcing",
@@ -516,7 +521,6 @@ private fun HomeScreenPreviewContent(
                     lkmMode = lkmMode,
                     isSafeMode = isSafeMode,
                     isLateLoadMode = isLateLoadMode,
-                    isSELinuxPermissive = isSELinuxPermissive,
                     superuserCount = superuserCount,
                     moduleCount = moduleCount,
                     selinuxStatus = selinuxStatus,
@@ -545,7 +549,7 @@ private fun HomeScreenNotActivatedPreview() {
 @Preview(name = "Home Permissive", showBackground = true)
 @Composable
 private fun HomeScreenPermissivePreview() {
-    HomeScreenPreviewContent(ksuVersion = null, lkmMode = null, isSELinuxPermissive = true, selinuxStatus = "Permissive")
+    HomeScreenPreviewContent(ksuVersion = null, lkmMode = null, selinuxStatus = "Permissive")
 }
 
 @Preview(name = "Home Jailbreak", showBackground = true)
@@ -559,7 +563,6 @@ private fun previewHomeScreenState(
     lkmMode: Boolean?,
     isSafeMode: Boolean = false,
     isLateLoadMode: Boolean = false,
-    isSELinuxPermissive: Boolean = false,
     superuserCount: Int = 0,
     moduleCount: Int = 0,
     selinuxStatus: String = "Enforcing",
@@ -574,7 +577,6 @@ private fun previewHomeScreenState(
     isRootAvailable = ksuVersion != null,
     isSafeMode = isSafeMode,
     isLateLoadMode = isLateLoadMode,
-    isSELinuxPermissive = isSELinuxPermissive,
     checkUpdateEnabled = false,
     latestVersionInfo = me.weishu.kernelsu.ui.util.module.LatestVersionInfo(),
     currentManagerVersionCode = 10000,

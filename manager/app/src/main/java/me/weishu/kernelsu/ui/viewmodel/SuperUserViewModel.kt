@@ -27,6 +27,7 @@ import me.weishu.kernelsu.ui.screen.superuser.SuperUserUiState
 import me.weishu.kernelsu.ui.util.HanziToPinyin
 import me.weishu.kernelsu.ui.util.ownerNameForUid
 import me.weishu.kernelsu.ui.util.pickPrimary
+import me.weishu.kernelsu.ui.util.withCurrentUserUid
 import java.text.Collator
 import java.util.Locale
 
@@ -55,7 +56,8 @@ class SuperUserViewModel(
         fun getAppIconDrawable(context: Context, packageName: String): Drawable? {
             val appList = synchronized(appsLock) { cachedApps }
             val appDetail = appList.find { it.packageName == packageName }
-            return appDetail?.packageInfo?.applicationInfo?.loadIcon(context.packageManager)
+            val appInfo = appDetail?.packageInfo?.applicationInfo ?: return null
+            return appInfo.withCurrentUserUid().loadIcon(context.packageManager)
         }
     }
 
@@ -287,12 +289,13 @@ class SuperUserViewModel(
                 synchronized(appsLock) { cachedApps = newApps }
                 updateCachedGroupedApps(cachedGroups)
                 updateVisibleApps(grouped)
-                _uiState.update { it.copy(userIds = ids, isRefreshing = false) }
+                _uiState.update { it.copy(userIds = ids, isRefreshing = false, hasLoaded = true) }
             }.onFailure { e ->
                 Log.e(TAG, "fetchAppList failed", e)
                 _uiState.update {
                     it.copy(
                         isRefreshing = false,
+                        hasLoaded = true,
                         error = e
                     )
                 }
