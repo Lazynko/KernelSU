@@ -103,6 +103,7 @@ import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.PullToRefresh
+import top.yukonga.miuix.kmp.basic.RefreshState
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTitle
@@ -351,70 +352,69 @@ fun ModuleRepoScreenMiuix(
         val offline = state.offline
 
         searchStatus.SearchBox {
-            if (!contentReady || isLoading) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(
-                            top = innerPadding.calculateTopPadding(),
-                            start = innerPadding.calculateStartPadding(layoutDirection),
-                            end = innerPadding.calculateEndPadding(layoutDirection),
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (offline) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = stringResource(R.string.network_offline),
-                                color = colorScheme.onSurfaceVariantSummary,
-                                fontSize = 16.sp
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            TextButton(
-                                modifier = Modifier
-                                    .padding(horizontal = 24.dp)
-                                    .fillMaxWidth(),
-                                text = stringResource(R.string.network_retry),
-                                onClick = actions.onRefresh,
-                            )
+            val pullToRefreshState = rememberPullToRefreshState()
+            val lazyListState = rememberLazyListState()
+            val refreshTick = remember { mutableIntStateOf(0) }
+            val latestModules = rememberUpdatedState(state.modules)
+            val latestRefreshing = rememberUpdatedState(state.isRefreshing)
+            ScrollToTopOnChange(
+                lazyListState,
+                state.sortOrder,
+                refreshTick.intValue,
+                isBusy = { latestRefreshing.value },
+            ) { latestModules.value }
+            val refreshTexts = listOf(
+                stringResource(R.string.refresh_pulling),
+                stringResource(R.string.refresh_release),
+                stringResource(R.string.refresh_refresh),
+                stringResource(R.string.refresh_complete),
+            )
+            PullToRefresh(
+                isRefreshing = state.isRefreshing,
+                pullToRefreshState = pullToRefreshState,
+                onRefresh = {
+                    actions.onRefresh()
+                    refreshTick.intValue++
+                },
+                refreshTexts = refreshTexts,
+                contentPadding = PaddingValues(
+                    top = innerPadding.calculateTopPadding() + 6.dp,
+                    start = innerPadding.calculateStartPadding(layoutDirection),
+                    end = innerPadding.calculateEndPadding(layoutDirection)
+                ),
+            ) {
+                if (!contentReady || isLoading) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(
+                                top = innerPadding.calculateTopPadding(),
+                                start = innerPadding.calculateStartPadding(layoutDirection),
+                                end = innerPadding.calculateEndPadding(layoutDirection),
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (offline) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = stringResource(R.string.network_offline),
+                                    color = colorScheme.onSurfaceVariantSummary,
+                                    fontSize = 16.sp
+                                )
+                                Spacer(Modifier.height(12.dp))
+                                TextButton(
+                                    modifier = Modifier
+                                        .padding(horizontal = 24.dp)
+                                        .fillMaxWidth(),
+                                    text = stringResource(R.string.network_retry),
+                                    onClick = actions.onRefresh,
+                                )
+                            }
+                        } else if (pullToRefreshState.refreshState == RefreshState.Idle) {
+                            InfiniteProgressIndicator()
                         }
-                    } else {
-                        InfiniteProgressIndicator()
                     }
-                }
-            }
-            if (!isLoading && contentReady) {
-                val pullToRefreshState = rememberPullToRefreshState()
-                val lazyListState = rememberLazyListState()
-                val refreshTick = remember { mutableStateOf(0) }
-                val latestModules = rememberUpdatedState(state.modules)
-                val latestRefreshing = rememberUpdatedState(state.isRefreshing)
-                ScrollToTopOnChange(
-                    lazyListState,
-                    state.sortOrder,
-                    refreshTick.value,
-                    isBusy = { latestRefreshing.value },
-                ) { latestModules.value }
-                val refreshTexts = listOf(
-                    stringResource(R.string.refresh_pulling),
-                    stringResource(R.string.refresh_release),
-                    stringResource(R.string.refresh_refresh),
-                    stringResource(R.string.refresh_complete),
-                )
-                PullToRefresh(
-                    isRefreshing = state.isRefreshing,
-                    pullToRefreshState = pullToRefreshState,
-                    onRefresh = {
-                        actions.onRefresh()
-                        refreshTick.value++
-                    },
-                    refreshTexts = refreshTexts,
-                    contentPadding = PaddingValues(
-                        top = innerPadding.calculateTopPadding() + 6.dp,
-                        start = innerPadding.calculateStartPadding(layoutDirection),
-                        end = innerPadding.calculateEndPadding(layoutDirection)
-                    ),
-                ) {
+                } else {
                     Box(modifier = if (backdrop != null) Modifier.layerBackdrop(backdrop) else Modifier) {
                         LazyColumn(
                             state = lazyListState,
